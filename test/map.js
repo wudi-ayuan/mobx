@@ -503,3 +503,47 @@ test('deepEqual map', t => {
 
 	t.end();
 })
+
+test('798, Computed triggering the creation of an observable map invariant failed', t=> {
+
+	var form = function (settings) {
+		var form = mobx.observable({
+			reactPropsMap: mobx.observable.map(),
+			model: {
+				value: settings + 'TEST'
+			}
+		});
+		return form;
+	};
+
+	var customerSearchStore = function () {
+
+		var customerSearchStore = mobx.observable({
+			customerType: 'RUBY',
+			searchTypeFormStore: mobx.computed(function () {
+				return form(customerSearchStore.customerType);
+			}),
+			customerSearchType: mobx.computed(function () {
+				return form(customerSearchStore.searchTypeFormStore.model.value);
+			}),
+			endValue: mobx.computed(function () {
+				return customerSearchStore.customerSearchType.model.value;
+			})
+		});
+		return customerSearchStore;
+	};
+	var cs = customerSearchStore();
+	t.equals(cs.endValue, 'RUBYTESTTEST');
+
+	// make sure merge is still transactional!
+	var changeCount = 0;
+	mobx.autorun(function () {
+		var output = cs.customerSearchType.reactPropsMap.toJS();
+		changeCount++;
+	});
+	t.equals(changeCount, 1);
+	cs.customerSearchType.reactPropsMap.merge({test1: 'x', test2: 'y'});
+	t.equals(changeCount, 2);
+
+	t.end();
+})
