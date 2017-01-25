@@ -65,7 +65,7 @@ export class ObservableMap<V> implements IInterceptable<IMapWillChange<V>>, ILis
 
 	constructor(initialData?: IObservableMapInitialValues<V>, public enhancer: IEnhancer<V> = deepEnhancer, public name = "ObservableMap@" + getNextId()) {
 		allowStateChanges(true, () => {
-			this.merge(initialData);
+			this.untrackedMerge(initialData);
 		});
 	}
 
@@ -233,14 +233,7 @@ export class ObservableMap<V> implements IInterceptable<IMapWillChange<V>>, ILis
 			other = other.toJS();
 		}
 		runInTransaction(() => {
-			if (isPlainObject(other))
-				Object.keys(other).forEach(key => this.set(key, other[key]));
-			else if (Array.isArray(other))
-				other.forEach(([key, value]) => this.set(key, value));
-			else if (isES6Map(other))
-				other.forEach((value, key) => this.set(key, value));
-			else if (other !== null && other !== undefined)
-				fail("Cannot initialize map from " + other);
+			this.mergeDataByType(other);
 		});
 		return this;
 	}
@@ -291,6 +284,28 @@ export class ObservableMap<V> implements IInterceptable<IMapWillChange<V>>, ILis
 	private assertValidKey(key: string) {
 		if (!this.isValidKey(key))
 			throw new Error(`[mobx.map] Invalid key: '${key}', only strings, numbers and booleans are accepted as key in observable maps.`);
+	}
+
+	private mergeDataByType(other: ObservableMap<V> | IKeyValueMap<V> | any): ObservableMap<V> {
+		untracked(() => {
+			if (isPlainObject(other))
+				Object.keys(other).forEach(key => this.set(key, other[key]));
+			else if (Array.isArray(other))
+				other.forEach(([key, value]) => this.set(key, value));
+			else if (isES6Map(other))
+				other.forEach((value, key) => this.set(key, value));
+			else if (other !== null && other !== undefined)
+				fail("Cannot initialize map from " + other);
+		});
+		return this;
+	}
+
+	private untrackedMerge(other: ObservableMap<V> | IKeyValueMap<V> | any): ObservableMap<V> {
+		if (isObservableMap(other)) {
+			other = other.toJS();
+		}
+		this.mergeDataByType(other);
+		return this;
 	}
 
 	toString(): string {
